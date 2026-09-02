@@ -36,12 +36,12 @@ function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toStr
 function expiryStatus(p){
   if(!p.end_day || !p.end_month) return { status:"ok", label:"—" };
   const today = new Date();
-  const year = today.getFullYear();
+  const year = p.end_year || today.getFullYear();
   const end = new Date(year, p.end_month-1, p.end_day);
   const diffDays = Math.ceil((end - today) / (1000*60*60*24));
   if(diffDays < 0) return { status:"expired", label:"منتهي" };
   if(diffDays <= (p.alert_days||0)) return { status:"warning", label:`باقي ${diffDays} يوم` };
-  return { status:"ok", label:`${p.end_day}/${p.end_month}` };
+  return { status:"ok", label:`${p.end_day}/${p.end_month}/${String(year).slice(-2)}` };
 }
 
 /* ---------------- رفع الصور إلى Storage (لا تُخزَّن كنص طويل أبدًا) ---------------- */
@@ -299,9 +299,18 @@ function renderDatesTab(){
 
 function productCardHtml(p){
   const ex = expiryStatus(p);
+  if(!p.image_url){
+    return `
+      <div class="product-card compact" data-edit-product="${p.id}">
+        <div class="pname">${escapeHtml(p.name)}</div>
+        <div class="psku">${escapeHtml(p.sku||'')}</div>
+        <div class="pexp ${ex.status}">${ex.label}</div>
+      </div>
+    `;
+  }
   return `
     <div class="product-card" data-edit-product="${p.id}">
-      <img src="${p.image_url||''}" alt="">
+      <img src="${p.image_url}" alt="">
       <div class="pname">${escapeHtml(p.name)}</div>
       <div class="psku">${escapeHtml(p.sku||'')}</div>
       <div class="pexp ${ex.status}">${ex.label}</div>
@@ -331,6 +340,31 @@ function renderLinksTab(){
 
 function escapeHtml(s){
   return String(s||"").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------------- قوائم اختيار التاريخ (بدون كتابة يدوية) ---------------- */
+function dayOptions(selected){
+  let html = `<option value="">-</option>`;
+  for(let d=1; d<=31; d++) html += `<option value="${d}" ${d===selected?'selected':''}>${d}</option>`;
+  return html;
+}
+function monthOptions(selected){
+  const names = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  let html = `<option value="">-</option>`;
+  names.forEach((n,i)=>{
+    const m = i+1;
+    html += `<option value="${m}" ${m===selected?'selected':''}>${m} - ${n}</option>`;
+  });
+  return html;
+}
+function yearOptions(selected){
+  const currentYear = new Date().getFullYear();
+  let html = "";
+  for(let y=currentYear; y<=currentYear+2; y++){
+    const isSel = selected ? y===selected : y===currentYear;
+    html += `<option value="${y}" ${isSel?'selected':''}>${String(y).slice(-2)}</option>`;
+  }
+  return html;
 }
 
 /* ---------------- ربط الأحداث ---------------- */
@@ -448,8 +482,15 @@ function openProductModal(branchId, existing){
         <div class="field"><label>الوزن</label><input id="pmWeight" type="number" value="${existing?.weight_value||''}"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>يوم الانتهاء</label><input id="pmEndDay" type="number" min="1" max="31" value="${existing?.end_day||''}"></div>
-        <div class="field"><label>شهر الانتهاء</label><input id="pmEndMonth" type="number" min="1" max="12" value="${existing?.end_month||''}"></div>
+        <div class="field"><label>يوم الانتهاء</label>
+          <select id="pmEndDay">${dayOptions(existing?.end_day)}</select>
+        </div>
+        <div class="field"><label>شهر الانتهاء</label>
+          <select id="pmEndMonth">${monthOptions(existing?.end_month)}</select>
+        </div>
+        <div class="field"><label>السنة</label>
+          <select id="pmEndYear">${yearOptions(existing?.end_year)}</select>
+        </div>
       </div>
       <div class="field"><label>أيام التنبيه قبل الانتهاء</label><input id="pmAlertDays" type="number" value="${existing?.alert_days||7}"></div>
       <button class="btn btn-primary" style="width:100%;" id="pmSaveBtn">حفظ</button>
@@ -513,6 +554,7 @@ function openProductModal(branchId, existing){
       start_day: 1, start_month: 1,
       end_day: parseInt(document.getElementById("pmEndDay").value,10) || null,
       end_month: parseInt(document.getElementById("pmEndMonth").value,10) || null,
+      end_year: parseInt(document.getElementById("pmEndYear").value,10) || new Date().getFullYear(),
       alert_days: parseInt(document.getElementById("pmAlertDays").value,10) || 0,
       image_url: existing?.image_url || "",
     };
@@ -596,7 +638,7 @@ function exportSelectedProductsCSV(){
     ids.forEach(pid=>{
       const p = state.products.find(x=>x.id===pid);
       if(!p) return;
-      rows.push([b.name||"", p.name||"", p.sku||"", p.weight_value||"", p.weight_unit||"", `${p.end_day||""}/${p.end_month||""}`]);
+      rows.push([b.name||"", p.name||"", p.sku||"", p.weight_value||"", p.weight_unit||"", `${p.end_day||""}/${p.end_month||""}/${p.end_year?String(p.end_year).slice(-2):""}`]);
     });
   });
   if(rows.length===1){ toast("لا يوجد منتجات مختارة للتصدير", true); return; }
