@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تواريخ المنتجات — أرلا</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+
+<div class="topbar">
+  <div>
+    <h1>تواريخ المنتجات</h1>
+    <div class="sub">موقع مخصّص — منتجات مختارة وروابط</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="dates">التواريخ</button>
+  <button class="tab-btn" data-tab="links">الروابط</button>
+</div>
+
+<div id="app" class="container"></div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
