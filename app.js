@@ -15,7 +15,7 @@ const state = {
   products: [],
   dailyEditedIds: {}, // { branchId: [productId, ...] }
   links: [],
-  activeTab: "dates",
+  activeTab: null, // null = الشاشة الرئيسية (القائمة)
   activeBranchId: null,
 };
 
@@ -220,9 +220,35 @@ async function loadAll(){
 /* ---------------- العرض (Render) ---------------- */
 function render(){
   const app = document.getElementById("app");
-  app.innerHTML = state.activeTab === "dates" ? renderDatesTab() : renderLinksTab();
+  const backBtn = document.getElementById("backBtn");
+  const sub = document.getElementById("topbarSub");
+  if(state.activeTab === null){
+    backBtn.style.display = "none";
+    sub.textContent = "موقع مخصّص — منتجات مختارة وروابط";
+    app.innerHTML = renderHomeMenu();
+  }else{
+    backBtn.style.display = "flex";
+    sub.textContent = state.activeTab === "dates" ? "التواريخ" : "الروابط";
+    app.innerHTML = state.activeTab === "dates" ? renderDatesTab() : renderLinksTab();
+  }
   attachHandlers();
 }
+
+function renderHomeMenu(){
+  return `
+    <div class="home-menu">
+      <div class="home-tile" data-goto="dates">
+        <div class="htitle">📅 التواريخ</div>
+        <div class="hsub">جميع المنتجات ومنتجات مختارة لكل فرع</div>
+      </div>
+      <div class="home-tile" data-goto="links">
+        <div class="htitle">🔗 الروابط</div>
+        <div class="hsub">روابط سريعة تفتح مباشرة عند الضغط</div>
+      </div>
+    </div>
+  `;
+}
+
 
 function renderDatesTab(){
   if(!state.branches.length){
@@ -309,9 +335,11 @@ function escapeHtml(s){
 
 /* ---------------- ربط الأحداث ---------------- */
 function attachHandlers(){
-  document.querySelectorAll(".tab-btn").forEach(b=>{
-    b.classList.toggle("active", b.getAttribute("data-tab")===state.activeTab);
-    b.onclick = ()=>{ state.activeTab = b.getAttribute("data-tab"); render(); };
+  const backBtn = document.getElementById("backBtn");
+  if(backBtn) backBtn.onclick = ()=>{ state.activeTab = null; render(); };
+
+  document.querySelectorAll("[data-goto]").forEach(el=>{
+    el.onclick = ()=>{ state.activeTab = el.getAttribute("data-goto"); render(); };
   });
 
   document.querySelectorAll("[data-branch]").forEach(el=>{
