@@ -406,6 +406,7 @@ function openAddBranchModal(){
 /* ---------------- نافذة إضافة/تعديل منتج ---------------- */
 function openProductModal(branchId, existing){
   let pendingImage = null;
+  const isSelected = existing ? (state.dailyEditedIds[branchId]||[]).includes(existing.id) : false;
   const wrap = document.createElement("div");
   wrap.className = "modal-overlay";
   wrap.innerHTML = `
@@ -424,7 +425,8 @@ function openProductModal(branchId, existing){
       </div>
       <div class="field"><label>أيام التنبيه قبل الانتهاء</label><input id="pmAlertDays" type="number" value="${existing?.alert_days||7}"></div>
       <button class="btn btn-primary" style="width:100%;" id="pmSaveBtn">حفظ</button>
-      ${existing ? `<button class="btn btn-danger" style="width:100%; margin-top:8px;" id="pmDeleteBtn">حذف المنتج</button>` : ''}
+      ${existing && isSelected ? `<button class="btn btn-ghost" style="margin-top:8px;" id="pmRemoveSelectedBtn">إزالة من منتجات مختارة فقط</button>` : ''}
+      ${existing ? `<button class="btn btn-danger" style="width:100%; margin-top:8px;" id="pmDeleteBtn">حذف المنتج نهائيًا</button>` : ''}
     </div>
   `;
   document.body.appendChild(wrap);
@@ -439,8 +441,24 @@ function openProductModal(branchId, existing){
   };
 
   if(existing){
+    if(isSelected){
+      document.getElementById("pmRemoveSelectedBtn").onclick = async ()=>{
+        const btn = document.getElementById("pmRemoveSelectedBtn");
+        btn.disabled = true; btn.textContent = "...جاري الإزالة";
+        const ok = await unmarkSelected(branchId, existing.id);
+        if(!ok){
+          btn.disabled = false; btn.textContent = "إزالة من منتجات مختارة فقط";
+          toast("فشلت الإزالة، حاول مرة أخرى", true);
+          return;
+        }
+        state.dailyEditedIds[branchId] = (state.dailyEditedIds[branchId]||[]).filter(id=>id!==existing.id);
+        wrap.remove();
+        toast("تمت الإزالة من منتجات مختارة (المنتج باقٍ بالقائمة العامة)");
+        render();
+      };
+    }
     document.getElementById("pmDeleteBtn").onclick = async ()=>{
-      if(!confirm("تأكيد حذف المنتج؟")) return;
+      if(!confirm("تأكيد حذف المنتج نهائيًا من كل مكان؟")) return;
       const ok = await deleteProductRow(existing.id);
       if(!ok){ toast("فشل الحذف، حاول مرة أخرى", true); return; }
       state.products = state.products.filter(p=>p.id!==existing.id);
