@@ -283,7 +283,7 @@ function renderDatesTab(){
       </summary>
       <div class="group-body">
         <button class="add-tile" data-add-product="${branch.id}">+ إضافة منتج</button>
-        ${categoryGroupsHtml(allProducts, selectedIds)}
+        ${categoryGroupsHtml(allProducts, selectedIds, "all")}
       </div>
     </details>
 
@@ -294,7 +294,7 @@ function renderDatesTab(){
       </summary>
       <div class="group-body">
         <button class="btn btn-ghost" id="exportSelectedBtn">⬇ تحميل منتجات مختارة (كل الفروع)</button>
-        ${selectedProducts.length ? categoryGroupsHtml(selectedProducts, null) : '<div class="empty-state">لا يوجد منتجات مختارة بعد</div>'}
+        ${selectedProducts.length ? categoryGroupsHtml(selectedProducts, null, "selected") : '<div class="empty-state">لا يوجد منتجات مختارة بعد</div>'}
       </div>
     </details>
 
@@ -322,7 +322,7 @@ function groupByCategory(products){
   return ordered;
 }
 
-function categoryGroupsHtml(products, selectedIds){
+function categoryGroupsHtml(products, selectedIds, context){
   const groups = groupByCategory(products);
   if(!groups.length) return '<div class="empty-state">لا يوجد منتجات</div>';
   return groups.map(g=>{
@@ -335,28 +335,28 @@ function categoryGroupsHtml(products, selectedIds){
           <span class="mg-meta"><span class="group-count ${editedCount>0?'has-filled':''}">${badge}</span><span>▾</span></span>
         </summary>
         <div class="group-body">
-          <div class="product-grid">${g.items.map(p=>productCardHtml(p)).join("")}</div>
+          <div class="product-grid">${g.items.map(p=>productCardHtml(p, context)).join("")}</div>
         </div>
       </details>
     `;
   }).join("");
 }
 
-function productCardHtml(p){
+function productCardHtml(p, context){
   const ex = expiryStatus(p);
   if(!p.image_url){
     return `
-      <div class="product-card compact" data-edit-product="${p.id}">
-        <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="product-card compact" data-edit-product="${p.id}" data-context="${context||'all'}">
+        <div class="pname">${escapeHtml(productDisplayName(p))}</div>
         <div class="psku">${escapeHtml(p.sku||'')}</div>
         <div class="pexp ${ex.status}">${ex.label}</div>
       </div>
     `;
   }
   return `
-    <div class="product-card" data-edit-product="${p.id}">
+    <div class="product-card" data-edit-product="${p.id}" data-context="${context||'all'}">
       <img src="${p.image_url}" alt="">
-      <div class="pname">${escapeHtml(p.name)}</div>
+      <div class="pname">${escapeHtml(productDisplayName(p))}</div>
       <div class="psku">${escapeHtml(p.sku||'')}</div>
       <div class="pexp ${ex.status}">${ex.label}</div>
     </div>
@@ -381,6 +381,12 @@ function renderLinksTab(){
     </div>
     <button class="add-tile" id="addLinkBtn">+ إضافة رابط جديد</button>
   `;
+}
+
+
+function productDisplayName(p){
+  const weight = p.weight_value ? `${p.weight_value}${p.weight_unit||''}` : '';
+  return weight ? `${p.name} \u2066${weight}\u2069` : p.name;
 }
 
 function escapeHtml(s){
@@ -448,7 +454,8 @@ function attachHandlers(){
   document.querySelectorAll("[data-edit-product]").forEach(el=>{
     el.onclick = ()=>{
       const p = state.products.find(x=>x.id===el.getAttribute("data-edit-product"));
-      if(p) openProductModal(p.branch_id, p);
+      const fromSelected = el.getAttribute("data-context") === "selected";
+      if(p) openProductModal(p.branch_id, p, fromSelected);
     };
   });
 
@@ -511,7 +518,7 @@ function openAddBranchModal(){
 }
 
 /* ---------------- نافذة إضافة/تعديل منتج ---------------- */
-function openProductModal(branchId, existing){
+function openProductModal(branchId, existing, fromSelected){
   let pendingImage = null;
   const isSelected = existing ? (state.dailyEditedIds[branchId]||[]).includes(existing.id) : false;
   const wrap = document.createElement("div");
@@ -540,7 +547,7 @@ function openProductModal(branchId, existing){
       <div class="field"><label>أيام التنبيه قبل الانتهاء</label><input id="pmAlertDays" type="number" value="${existing?.alert_days||7}"></div>
       <button class="btn btn-primary" style="width:100%;" id="pmSaveBtn">حفظ</button>
       ${existing && isSelected ? `<button class="btn btn-ghost" style="margin-top:8px;" id="pmRemoveSelectedBtn">إزالة من منتجات مختارة فقط</button>` : ''}
-      ${existing ? `<button class="btn btn-danger" style="width:100%; margin-top:8px;" id="pmDeleteBtn">حذف المنتج نهائيًا</button>` : ''}
+      ${existing && !fromSelected ? `<button class="btn btn-danger" style="width:100%; margin-top:8px;" id="pmDeleteBtn">حذف المنتج نهائيًا</button>` : ''}
     </div>
   `;
   document.body.appendChild(wrap);
@@ -571,18 +578,20 @@ function openProductModal(branchId, existing){
         render();
       };
     }
-    document.getElementById("pmDeleteBtn").onclick = async ()=>{
-      if(!confirm("تأكيد حذف المنتج نهائيًا من كل مكان؟")) return;
-      const ok = await deleteProductRow(existing.id);
-      if(!ok){ toast("فشل الحذف، حاول مرة أخرى", true); return; }
-      state.products = state.products.filter(p=>p.id!==existing.id);
-      Object.keys(state.dailyEditedIds).forEach(bid=>{
-        state.dailyEditedIds[bid] = (state.dailyEditedIds[bid]||[]).filter(id=>id!==existing.id);
-      });
-      wrap.remove();
-      toast("تم حذف المنتج");
-      render();
-    };
+    if(!fromSelected){
+      document.getElementById("pmDeleteBtn").onclick = async ()=>{
+        if(!confirm("تأكيد حذف المنتج نهائيًا من كل مكان؟")) return;
+        const ok = await deleteProductRow(existing.id);
+        if(!ok){ toast("فشل الحذف، حاول مرة أخرى", true); return; }
+        state.products = state.products.filter(p=>p.id!==existing.id);
+        Object.keys(state.dailyEditedIds).forEach(bid=>{
+          state.dailyEditedIds[bid] = (state.dailyEditedIds[bid]||[]).filter(id=>id!==existing.id);
+        });
+        wrap.remove();
+        toast("تم حذف المنتج");
+        render();
+      };
+    }
   }
 
   document.getElementById("pmSaveBtn").onclick = async ()=>{
